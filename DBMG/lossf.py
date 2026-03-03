@@ -10,15 +10,16 @@ class AdaptiveLossWeighting(torch.nn.Module):
         self.log_sigma2 = torch.nn.Parameter(torch.tensor(0.0))
         self.log_sigma3 = torch.nn.Parameter(torch.tensor(0.0))
 
-    def forward(self, loss_matching, loss_text_cls, loss_image_cls):
-        return (
-                loss_matching * torch.exp(-self.log_sigma1) + self.log_sigma1 +
-                loss_text_cls * torch.exp(-self.log_sigma2) + self.log_sigma2 +
-                loss_image_cls * torch.exp(-self.log_sigma3) + self.log_sigma3
-        )
+    def forward(self, l1, l2, l3):
+        w1 = 1 / (2 * torch.exp(self.log_sigma1)**2)
+        w2 = 1 / (2 * torch.exp(self.log_sigma2)**2)
+        w3 = 1 / (2 * torch.exp(self.log_sigma3)**2)
+        return (w1 * l1 + self.log_sigma1 + 
+                w2 * l2 + self.log_sigma2 + 
+                w3 * l3 + self.log_sigma3)
 
 
-def category_softmax_loss(similarity_matrix, text_labels, image_labels, tau=0.07):
+def category_softmax_loss(similarity_matrix, text_labels, image_labels, tau=0.05):
     B = similarity_matrix.size(0)
     device = similarity_matrix.device
     sim = similarity_matrix / tau
@@ -41,4 +42,5 @@ def pairwise_ranking_loss(similarity_matrix, labels, margin=0.35):
         pairwise_diff = margin + neg_scores.unsqueeze(0) - pos_scores.unsqueeze(1)
         loss += F.relu(pairwise_diff).mean()
         count += 1
+
     return loss / count if count > 0 else torch.tensor(0.0, device=similarity_matrix.device, requires_grad=True)
