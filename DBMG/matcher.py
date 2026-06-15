@@ -1,7 +1,6 @@
 import math
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 def l2_normalize(x: torch.Tensor, dim: int = -1, eps: float = 1e-6) -> torch.Tensor:
@@ -9,20 +8,20 @@ def l2_normalize(x: torch.Tensor, dim: int = -1, eps: float = 1e-6) -> torch.Ten
 
 
 class DBMG(nn.Module):
-    def __init__(self, embed_dim_in: int = 512, embed_dim_out: int = 96):
+    def __init__(self, text_dim: int = 512, image_dim: int = 96, hidden_dim: int = 96):
         super().__init__()
-        self.embed_dim_out = embed_dim_out
-        self.proj_t_cls = nn.Linear(embed_dim_in, embed_dim_out)
-        self.proj_d_cls = nn.Linear(embed_dim_in, embed_dim_out)
-        self.proj_v_cls = nn.Linear(embed_dim_in, embed_dim_out)
-        self.proj_t_tok = nn.Linear(embed_dim_in, embed_dim_out)
-        self.proj_d_tok = nn.Linear(embed_dim_in, embed_dim_out)
-        self.proj_v_patch = nn.Linear(embed_dim_in, embed_dim_out)
-        self.tgl_q = nn.Linear(embed_dim_in, embed_dim_out)
-        self.tgl_k = nn.Linear(embed_dim_in, embed_dim_out)
-        self.tgl_v = nn.Linear(embed_dim_in, embed_dim_out)
+        self.hidden_dim = hidden_dim
+        self.proj_t_cls = nn.Linear(text_dim, hidden_dim)
+        self.proj_d_cls = nn.Linear(text_dim, hidden_dim)
+        self.proj_v_cls = nn.Linear(image_dim, hidden_dim)
+        self.proj_t_tok = nn.Linear(text_dim, hidden_dim)
+        self.proj_d_tok = nn.Linear(text_dim, hidden_dim)
+        self.proj_v_patch = nn.Linear(image_dim, hidden_dim)
+        self.tgl_q = nn.Linear(text_dim, hidden_dim)
+        self.tgl_k = nn.Linear(text_dim, hidden_dim)
+        self.tgl_v = nn.Linear(text_dim, hidden_dim)
 
-        self.tgl_layer_norm = nn.LayerNorm(embed_dim_out)
+        self.tgl_layer_norm = nn.LayerNorm(hidden_dim)
 
     def _TGG(self, z_t_cls: torch.Tensor, z_d_cls: torch.Tensor) -> torch.Tensor:
         t = l2_normalize(self.proj_t_cls(z_t_cls), dim=-1)  # [B,H]
@@ -33,7 +32,7 @@ class DBMG(nn.Module):
         Q = self.tgl_q(Z_d_tok)  # [B, Ld, H]
         K = self.tgl_k(Z_t_tok)  # [B, Lt, H]
         V = self.tgl_v(Z_t_tok)  # [B, Lt, H]
-        scores = torch.einsum("bqh,ckh->bcqk", Q, K) / math.sqrt(self.embed_dim_out)  # [B,B,Ld,Lt]
+        scores = torch.einsum("bqh,ckh->bcqk", Q, K) / math.sqrt(self.hidden_dim)  # [B,B,Ld,Lt]
         attn = torch.softmax(scores, dim=-1)  # over Lt
         context = torch.einsum("bcqk,ckh->bcqh", attn, V)  # [B,B,Ld,H]
         context = context.mean(dim=2)  # [B,B,H]
@@ -72,7 +71,6 @@ class DBMG(nn.Module):
         z_v_cls: torch.Tensor,
         Z_v_patch: torch.Tensor,
     ) -> torch.Tensor:
-        S_TIB = self._TIB(z_t_cls, Z_t_tok, z_d_cls, Z_d_tok)         # [B,B]
-        S_CAB = self._CAB(z_t_cls, Z_t_tok, z_v_cls, Z_v_patch)       # [B,B]
-        S = S_TIB + S_CAB
-        return S
+        s_tib = self._TIB(z_t_cls, Z_t_tok, z_d_cls, Z_d_tok)         # [B,B]
+        s_cab = self._CAB(z_t_cls, Z_t_tok, z_v_cls, Z_v_patch)       # [B,B]
+        return s_tib + s_cab
