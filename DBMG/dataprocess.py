@@ -136,13 +136,13 @@ def get_dataloaders(args):
                                     max_length=args.text_max_length, is_eval=True)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
-                              shuffle=True, num_workers=0,
+                              shuffle=True, num_workers=args.num_workers,
                               collate_fn=collate_fn)
     val_loader = DataLoader(val_dataset, batch_size=args.eval_batch_size,
-                            shuffle=True, num_workers=0,
+                            shuffle=False, num_workers=args.num_workers,
                             collate_fn=collate_fn)
     test_loader = DataLoader(test_dataset, batch_size=args.eval_batch_size,
-                             shuffle=True, num_workers=0,
+                             shuffle=False, num_workers=args.num_workers,
                              collate_fn=collate_fn)
 
     return train_loader, val_loader, test_loader
